@@ -1,6 +1,8 @@
 # AutoHandSimulator
 A keyboard/mouse input to simulate movement and rotation in the Unity AutoHand package.
 
+![ Alt text](AutoHandSim.gif) 
+
 # Setup
 * Add the files to your Unity Project 
 * Attach the "AutoHandPlayerControllerInputSimulator" to AutoHandPlayer.
