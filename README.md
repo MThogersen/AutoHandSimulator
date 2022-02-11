@@ -3,6 +3,8 @@ A keyboard/mouse input to simulate movement and rotation in the Unity AutoHand p
 
 ![ Alt text](AutoHandSim.gif) 
 
+(Do you like the looks of it? - it's a work in progress. Follow me on [twitter](https://twitter.com/MTrobotics?ref_src=twsrc%5Etfw) , I will be sharing more about this game in the coming months :-) )
+
 # Setup
 * Add the files to your Unity Project 
 * Attach the "AutoHandPlayerControllerInputSimulator" to AutoHandPlayer.
