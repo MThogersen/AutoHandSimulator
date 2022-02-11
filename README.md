@@ -11,6 +11,6 @@ Also, it is using pre-processor directives, so it won't compile for build versio
 
 # Prerequisites
 Requires: 
-* The Mock HMD from unity, get it here: 
+* The Mock HMD from unity, get it here: https://docs.unity3d.com/Packages/com.unity.xr.mock-hmd@1.0/manual/index.html
 * The "old" input system from unity, which is the default for Autohand (AFAIK).
 * The AutoHand package
