@@ -9,15 +9,29 @@ using UnityEngine.SpatialTracking;
 public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
 {
     public AutoHandPlayer player;
-
-    private SimulatedPoseDriver left, right, head;
-    private Vector2 screenSize;
+    public KeyCode controlLeftHandKey = KeyCode.Q;
+    public KeyCode controlRightHandKey = KeyCode.E;
     public bool isSimulating = false;
+
+    private bool simulate = false;
+    private SimulatedPoseDriver leftPoser, rightPoser, head;
+    private Vector2 screenSize;
+    private bool firstFrame = true;
+
     private void Start()
     {
+        Invoke("DelayedStart", 0.1f);
+    }
+
+    private void DelayedStart()
+    {
         if (!(bool)XRGeneralSettings.Instance?.Manager?.activeLoader.name.Contains("Mock"))
+        {
             return;
-        
+        }
+        else
+            simulate = true;
+
         isSimulating = true;
 
         var trackedPoseDrivers = FindObjectsOfType<TrackedPoseDriver>();
@@ -27,75 +41,164 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
             if (driver.poseSource == TrackedPoseDriver.TrackedPose.Center)
             {
                 head = new GameObject("HeadDriver").AddComponent<SimulatedPoseDriver>();
-                head.transform.position = new Vector3(0,1.5f,0);
+                head.transform.position = new Vector3(0, 1.8f, 0);
                 driver.poseProviderComponent = head;
             }
             if (driver.poseSource == TrackedPoseDriver.TrackedPose.LeftPose)
             {
-                left = new GameObject("LeftDriver").AddComponent<SimulatedPoseDriver>();
-                left.transform.position = new Vector3(-.2f, 1f, 0.3f);
-                driver.poseProviderComponent = left;
+                leftPoser = new GameObject("LeftDriver").AddComponent<SimulatedPoseDriver>();
+                leftPoser.transform.position = new Vector3(-.2f, 1f, 0.3f);
+                driver.poseProviderComponent = leftPoser;
             }
             if (driver.poseSource == TrackedPoseDriver.TrackedPose.RightPose)
             {
-                right = new GameObject("RightDriver").AddComponent<SimulatedPoseDriver>();
-                right.transform.position = new Vector3(.2f, 1f, 0.3f);
-                driver.poseProviderComponent = right;
+                rightPoser = new GameObject("RightDriver").AddComponent<SimulatedPoseDriver>();
+                rightPoser.transform.position = new Vector3(.2f, 1f, 0.3f);
+                driver.poseProviderComponent = rightPoser;
             }
         }
 
         player = GetComponent<AutoHandPlayer>();
-
+        Invoke("MoveHeadToStartTracking", 1f);
     }
 
+
 #if UNITY_EDITOR
-    Vector3 mouseStartPos = Vector3.zero;
-    public bool setMouseStart = true;
+    Vector3 previousMousePos = Vector3.zero;
+    enum Move
+    {
+        dontMove,
+        bodyAndHead,
+        leftHand,
+        rightHand,
+        bothHands
+    }
+
+    Move move = Move.bodyAndHead;
+
     void Update()
     {
+        if (!simulate)
+            return;
 
-        HandleMovement();
+        move = DetermineWhatToMove();
 
-        HandleMouseHeadRotation();
-        
+        switch (move)
+        {
+            case Move.dontMove:
+                break;
+            case Move.bodyAndHead:
+                HandleBodyMovement();
+                HandleMouseHeadRotation();
+                break;
+            case Move.leftHand:
+                HandleHandControl(Move.leftHand);
+                break;
+            case Move.rightHand:
+                HandleHandControl(Move.rightHand);
+                break;
+            case Move.bothHands:
+                HandleHandControl(Move.rightHand);
+                HandleHandControl(Move.leftHand);
+                break;
+            default:
+                break;
+        }
+
+        previousMousePos = Input.mousePosition; // to have the delta mousePos
+
     }
 
     void FixedUpdate()
     {
-        player.Move(GetMovementControls());
+        if (!simulate)
+            return;
+
+        if (move == Move.bodyAndHead)
+            player.Move(GetMovementControls());
     }
 
-    void HandleMovement()
+    Move DetermineWhatToMove()
+    {
+        var controlLeftHand = Input.GetKey(controlLeftHandKey);
+        var controlRightHand = Input.GetKey(controlRightHandKey);
+
+        if (!(controlLeftHand | controlRightHand))
+            move = Move.bodyAndHead;
+        else if (controlLeftHand && controlRightHand)
+            move = Move.bothHands;
+        else if (controlLeftHand)
+            move = Move.leftHand;
+        else if (controlRightHand)
+            move = Move.rightHand;
+
+        return move;
+    }
+
+    void HandleBodyMovement()
     {
         player.Move(GetMovementControls());
-        
-        player.Turn(GetSnapTurnControls());
     }
 
     void HandleMouseHeadRotation()
     {
         if (!Input.GetKey(KeyCode.Mouse1))
         {
-            setMouseStart = true;
+            firstFrame = true;
             return;
         }
 
-        if (setMouseStart)
+        if (!firstFrame)
         {
-            mouseStartPos = Input.mousePosition;
-            setMouseStart = false;
+            var deltaRot = GetMouseInput(previousMousePos, Input.mousePosition);
+            player.AddRotation(Quaternion.Euler(0, deltaRot.x * 500f, 0));
+            head.transform.Rotate(-deltaRot.y * 500f, 0, 0, Space.Self);
         }
 
-        var deltaRot = GetMouseInput();
+        firstFrame = false;
 
-        player.AddRotation(Quaternion.Euler(0, deltaRot.x * 3f, 0));
-        head.transform.Rotate(-deltaRot.y * 3f, 0, 0, Space.Self);
     }
 
-    private Vector2 GetMouseInput()
+    void HandleHandControl(Move move)
+    {
+        var hand = move == Move.leftHand ? leftPoser : rightPoser;
+        var zDelta = Input.mouseScrollDelta.y / 50f;
+        var xyDelta = GetMouseInput(previousMousePos, Input.mousePosition)*3f;
+        hand.transform.position += new Vector3(xyDelta.x, xyDelta.y, zDelta);
+
+        if (!Input.GetKeyDown(KeyCode.Mouse0))
+            return;
+
+        if(move == Move.leftHand)
+        {
+            if(player.handLeft.GetHeldGrabbable() != null)
+            {
+                player.handLeft.Release();
+            }   
+            else
+            {
+                player.handLeft.Grab();
+            }
+                
+        }
+        else if (move == Move.rightHand)
+        {
+            if (player.handRight.GetHeldGrabbable() != null)
+            {
+                player.handRight.Release();
+            }
+            else
+            {
+                player.handRight.Grab();
+            }
+                
+        }
+    }
+
+    private Vector2 GetMouseInput(Vector3 previousMousePos, Vector3 mousePos)
     {
         screenSize = new Vector2((float)Screen.currentResolution.height, (float)Screen.currentResolution.width);
-        var mouseDiff = (Vector2)(Input.mousePosition - mouseStartPos);
+        var mouseDiff = (Vector2)(mousePos - previousMousePos);
         return mouseDiff / screenSize;
     }
 
@@ -108,12 +211,11 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
         return new Vector2(lr, ud);
     }
 
-    float GetSnapTurnControls()
+    public void MoveHeadToStartTracking()
     {
-        var rot = Input.GetKey(KeyCode.Q) ? -1 : 0;
-        rot += Input.GetKey(KeyCode.E) ? 1 : 0;
-        return rot;
+        head.transform.position += new Vector3(0, 0.01f, 0);
     }
-    #endif
+
+#endif
 }
 
