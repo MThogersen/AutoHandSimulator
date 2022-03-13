@@ -9,6 +9,7 @@ using UnityEngine.SpatialTracking;
 public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
 {
     public AutoHandPlayer player;
+    public float headHeight = 1.8f;
     public KeyCode controlLeftHandKey = KeyCode.Q;
     public KeyCode controlRightHandKey = KeyCode.E;
     public bool isSimulating = false;
@@ -41,7 +42,7 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
             if (driver.poseSource == TrackedPoseDriver.TrackedPose.Center)
             {
                 head = new GameObject("HeadDriver").AddComponent<SimulatedPoseDriver>();
-                head.transform.position = new Vector3(0, 1.8f, 0);
+                head.transform.position = new Vector3(0, headHeight, 0);
                 driver.poseProviderComponent = head;
             }
             if (driver.poseSource == TrackedPoseDriver.TrackedPose.LeftPose)
