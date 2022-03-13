@@ -7,7 +7,7 @@ A keyboard/mouse input to simulate movement and hand controls in the AutoHand pa
 
 ## Update! - Now includes basic hand control
 
-![ Alt text](AutoHandSim.gif) 
+![ Alt text](AutoHandSim_w_hands.gif) 
 
 To control hands, simply hold down Q for left hand and E for right hand and move the mouse, to move the hands up/down/left/right and scroll to move forward/backwards.
 
