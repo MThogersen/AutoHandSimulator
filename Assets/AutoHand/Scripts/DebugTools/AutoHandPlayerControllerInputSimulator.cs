@@ -174,8 +174,8 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
         {
             target_hand = devHandRight;
         }
-
-        if (Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition), out RaycastHit hit, 100))
+        LayerMask ignoreLayers = ~(1 << 2 & 1 << 28 & 1 << 29 & 1 << 31);  // Ignore default autohand layers which can collide with raycasting
+        if (Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition), out RaycastHit hit, int.MaxValue, ignoreLayers))
         {
             return new Vector3(hit.point.x, hit.point.y, hit.point.z);
         }
@@ -271,12 +271,10 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
             {
                 if (devHandLeft.GetHeldGrabbable() != null)
                 {
-                    Debug.Log("Releasing");
                     devHandLeft.Release();
                 }
                 else
                 {
-                    Debug.Log("Grabbing");
                     devHandLeft.Grab();
                 }
             }
@@ -284,7 +282,7 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
         }
         else if (move == Move.rightHand)
         {
-            if (Input.GetKeyDown(primaryButtonKey))
+            if (Input.GetKey(primaryButtonKey))
             { 
                 if (devHandRight.GetHeldGrabbable() != null)
                 {
@@ -298,7 +296,7 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
         }
         else if (move == Move.bothHands)
         {
-            if (Input.GetKeyDown(primaryButtonKey))
+            if (Input.GetKey(primaryButtonKey))
             {
                 if (devHandRight.GetHeldGrabbable() != null && devHandLeft.GetHeldGrabbable() != null)
                 {
