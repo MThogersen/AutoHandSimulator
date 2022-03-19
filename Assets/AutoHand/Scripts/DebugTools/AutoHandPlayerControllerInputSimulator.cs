@@ -141,19 +141,15 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (!simulate)
+        {
+            return;
+        }
+
         // If we do not move the hands we would like to freeze the camera so it (and the object we try to interact with) stays into frame
         if (!(Input.GetKey(controlLeftHandKey) | Input.GetKey(controlRightHandKey)))
         { HandleMouseHeadRotation(); }
         UserInput();
-    }
-
-    void FixedUpdate()
-    {
-        if (!simulate)
-            return;
-
-        if (move == Move.bodyAndHead)
-            player.Move(GetMovementControls());
     }
 
     Quaternion GetRotationTargetBasedOnMouse() 
@@ -249,6 +245,11 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
 
     private void UserInput() 
     { // handles user input
+        if (move == Move.bodyAndHead)
+        {
+            player.Move(GetMovementControls());
+        }
+
         if (Input.GetKeyDown(crouchKey)) 
         { // Allows the user to crouch
             player.crouching = true;
