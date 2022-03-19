@@ -40,14 +40,8 @@ Controls can be rebound to different key-bindings
 
 - W,A,S,D -> Body movement
 - HOLD Q-> Left hand movement
-- Q + Scroll up -> Move Left hand away
-- Q + Scroll down -> Move Left hand closer
 - HOLD E -> Right hand movement
-- E + Scroll up -> Move Right hand away
-- E + Scroll down -> Move Right hand closer
 - HOLD E + Q -> Both hands movement
-- E + Q + Scroll up -> Move both hands away
-- E + Q + Scroll down -> Move both hands closer
 - R -> Reset hands to default position
 - HOLD Q + LMB -> grab with left
 - HOLD E + LMB -> grab with right
