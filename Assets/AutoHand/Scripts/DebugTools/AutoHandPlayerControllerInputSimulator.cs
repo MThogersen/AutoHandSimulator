@@ -43,15 +43,18 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
     public bool ignoreMe = false;
     [Header("Adjustments:")]
     [ShowIf("ignoreMe")]
-    public bool runSimWithHMDConnected = false;
+    [Tooltip("Locks cursor to screen, escape the screen by hitting ESC-key")]
+    public bool cursorLock = true;
+    [ShowIf("ignoreMe")]
+    public bool runWithHMDConnected = false;
     [ShowIf("ignoreMe")]
     public Vector3 leftHandStartOffset = new Vector3(-.2f, 1.5f, 0.3f), rightHandStartOffset = new Vector3(.2f, 1.5f, 0.3f);
     [ShowIf("ignoreMe")]
     [Range(100f, 1500f)]
-    public float mouseLookSensitivity = 500f;
+    public float mouseLookSensitivity = 800f;
     [ShowIf("ignoreMe")]
-    [Range(0.5f, 3f)]
-    public float handMovementSpeed = 1f;
+    [Range(0.5f, 6f)]
+    public float handMovementSpeed = 3f;
     [ShowIf("ignoreMe")]
     [Tooltip("This will ensure that the regular XRHandPlayerControllerLink is disabled " +
         "and stays disabled while using this simulator. " +
@@ -65,18 +68,24 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
     [SerializeField] private MonoBehaviour xRHandPlayerControllerLink;
 
     [AutoToggleHeader("Key Setup")]
-    [SerializeField] bool ignorMe2;
-    [ShowIf("ignorMe2")]
+    [SerializeField] bool ignoreMe2;
+    [ShowIf("ignoreMe2")]
     public KeyCode controlLeftHandKeyCode = KeyCode.Q,
         controlRightHandKeyCode = KeyCode.E,
         forwardKeyCode = KeyCode.W,
         leftKeyCode = KeyCode.A,
         backKeyCode = KeyCode.S,
         rightKeyCode = KeyCode.D,
-        mouseGrabKeyCode = KeyCode.Mouse0,
-        mouseLookKeyCode = KeyCode.Mouse1,
-        crouchKeyCode = KeyCode.LeftControl,
-        resetHandKeyCode = KeyCode.R;
+        mouseGrabKeyCode = KeyCode.Mouse0;
+    [ShowIf("ignoreMe2")]
+    public KeyCode crouchKeyCode = KeyCode.LeftControl;
+    [ShowIf("ignoreMe2")]
+    public KeyCode resetHandKeyCode = KeyCode.R;
+    [ShowIf("ignoreMe2")]
+    public KeyCode mouseLookKeyCode = KeyCode.Mouse1;
+    [ShowIf("ignoreMe2")]
+    [EnableIf("cursorLock")]
+    public KeyCode escapeFPSKeyCode = KeyCode.Escape;
 
     [AutoToggleHeader("Events")]
     [SerializeField] bool ignorMe3;
@@ -90,13 +99,10 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
     private Vector2 screenSize;
     private Vector2 previousMousePos = Vector2.zero;
     private bool firstFrame = true;
-    private bool controlLeftHand, controlRightHand, forwardKey, backKey, leftKey, rightKey, mouseGrabKey, mouseLookKey, crouchKey, resetHandKey, mouseLookKeyDown;
+    private bool controlLeftHand, controlRightHand, forwardKey, backKey, leftKey, rightKey, mouseGrabKey, mouseLookKey, crouchKey, resetHandKey, mouseLookKeyDown, escapeFPSKeyDown;
     private Vector2 movementInputs = Vector2.zero;
     private Vector2 mouseDeltaPosition = Vector2.zero;
     private Vector2 mouseScrollDelta = Vector2.zero;
-    // First person view
-    // rotation around the right/x axis and up/y axis, used in first person camera
-    private Vector2 mouseLookDirectionFPS = Vector2.zero; 
 
     private void Start()
     {
@@ -117,7 +123,7 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
                 areHMDsConnected = true;
         }
 
-        if (!runSimWithHMDConnected && areHMDsConnected)
+        if (!runWithHMDConnected && areHMDsConnected)
             return;
         else
             isSimulating = true;
@@ -170,6 +176,8 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
             player.allowPlatforms = false;
         }
 
+        
+
         // This is to ensure that the movement initializes properly after start
         // (The headFollower of Autohand doesn't start without an initial movement)
         Invoke("MoveHeadToStartTracking", 0.2f);
@@ -200,6 +208,8 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
             return;
 
         GetInputs();
+
+        HandleFPSMode();
 
         currentlyMoving = DetermineWhatToMove();
 
@@ -248,12 +258,19 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
 
         if (player == null)
             return;
+        
+        if (!Application.isFocused)
+            return;
 
         if (currentlyMoving == Move.bodyAndHead || currentlyMoving == Move.body)
         {
             if (disableXRControllerLink && xRHandPlayerControllerLink != null)
                 xRHandPlayerControllerLink.enabled = false;
             player.Move(movementInputs);
+        }
+        if(currentlyMoving == Move.bodyAndHead || currentlyMoving == Move.head)
+        {
+            HandleMouseHeadRotation();
         }
 
     }
@@ -279,11 +296,25 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
         mouseScrollDelta = Input.mouseScrollDelta;
         mouseDeltaPosition = GetMouseScreenDeltaPosition();
         movementInputs = GetMovementControls();
+        escapeFPSKeyDown = Input.GetKeyDown(escapeFPSKeyCode);
 #endif
         // If only the new input system is available:
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
         // ready for new input system implementation 
 #endif
+    }
+
+    private void HandleFPSMode()
+    {
+        if (cursorLock)
+        {
+            if (mouseGrabKey)
+                Cursor.lockState = CursorLockMode.Locked;
+            if (escapeFPSKeyDown || mouseLookKey)
+                Cursor.lockState = CursorLockMode.None;
+        }
+        else
+            Cursor.lockState = CursorLockMode.None;
     }
 
     Move DetermineWhatToMove()
@@ -292,7 +323,7 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
 
         if (!(controlLeftHand | controlRightHand))
         {
-            if (mouseLookKey == true)
+            if (mouseLookKey == true || (cursorLock && Cursor.lockState == CursorLockMode.Locked))
             {
                 if (movementInputs != Vector2.zero)
                     currentlyMoving = Move.bodyAndHead;
@@ -323,7 +354,6 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
             xRHandPlayerControllerLink.enabled = false;
         player.Move(movementInputs);
     }
-
 
     void HandleMouseHeadRotation()
     {
@@ -400,11 +430,13 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
     {
         screenSize = new Vector2((float)Screen.currentResolution.height, (float)Screen.currentResolution.width);
 
-        var currentMouseInput = (Vector2)Input.mousePosition;
-        var mouseDiff = currentMouseInput - previousMousePos;
-        previousMousePos = currentMouseInput;
-        
-        return mouseDiff / screenSize;
+        float mouseX = Input.GetAxis("Mouse X");
+        float mouseY = -Input.GetAxis("Mouse Y");
+
+        var rotY = mouseX * mouseLookSensitivity * Time.deltaTime;
+        var rotX = mouseY * mouseLookSensitivity * Time.deltaTime;
+
+        return new Vector2(rotY, -rotX) / screenSize;
     }
 
     Vector2 GetMovementControls()

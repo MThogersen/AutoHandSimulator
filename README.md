@@ -47,6 +47,7 @@ Controls can be rebound to different key-bindings
 - HOLD Q + LMB -> grab with left
 - HOLD E + LMB -> grab with right
 - HOLD Q + HOLD E + LMB -> grab with both hands
+- ESC or RMB -> unlock cursor from gameview
 
 ## Settings
 
@@ -57,6 +58,10 @@ Controls can be rebound to different key-bindings
 ## Contributions
 
 New to old:
+- Updated default controls -> [MThogersen](https://github.com/MThogersen)
+    - Changed the default control mode to lock the cursor to the game view (FPS style control) until either: ESC is pressed or the LMB is pressed
+    - Original control mode (with no cursor lock) is made available through "Cursor Lock" option.
+---
 - Refactor and compatibility update -> [MThogersen](https://github.com/MThogersen)
     - Added support for OpenXR's Mock HMD
     - Exposed several settings for more customization
