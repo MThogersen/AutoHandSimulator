@@ -1,11 +1,12 @@
 # AutoHandSimulator
 A keyboard/mouse input to simulate movement and hand controls for the [AutoHand](https://assetstore.unity.com/packages/tools/physics/auto-hand-vr-physics-interaction-165323) package for Unity.
+This script simulates hardware input (i.e., tracking inputs from XR devices). Therefore, it is equivalent to picking up your device and testing it that way, making it a good tool for debugging without having to put on your HMD.
 
 ![AutohandSim](AutoHandSim.gif) 
 
 (Do you like the looks of it? - it's a work in progress. Follow me on [twitter](https://twitter.com/MTrobotics?ref_src=twsrc%5Etfw) , I will be sharing more about this game in the coming months :-) )
 
-## Update! - Now includes basic hand control
+## Update! - Now includes hand control and improved controls!
 
 ![LegacyAutoHandSim](AutoHandSim_w_hands.gif) 
 
@@ -34,7 +35,6 @@ Requires:
 
 ## Known issues
 - In the Demo scene locomotion using the script occasionally does not work. I have not been able to reliably repreoduce the problem - a restart of Unity usually fixes it.
-- The raytracing of the hands when moving the hands is a little bit off, just because the screen is split in two in VR. You have to get used to it.
 
 ## Controls
 Controls can be rebound to different key-bindings
