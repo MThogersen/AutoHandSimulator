@@ -14,20 +14,21 @@ To control hands, simply hold down Q for left hand and E for right hand and move
 # Setup
 * Setup [AutoHand](https://assetstore.unity.com/packages/tools/physics/auto-hand-vr-physics-interaction-165323) for Unity.
 * Copy `Assets` folder into your project
-* Make sure `Mock HMD` is enabled: `Go to Edit -> Project Settings-> XR Plug-in Management -> Mock HMD Loader`
-* Attach the `Assets/AutoHand/Scripts/DebugTools/AutoHandPlayerControllerInputSimulator.cs` to the **AutoHandPlayer**.
+* Make sure either `Mock HMD` or `OpenXR` is enabled: `Go to Edit -> Project Settings-> XR Plug-in Management` and enable one of them.
+* Using the default XRPlayer, attach the `Assets/AutoHand/Scripts/DebugTools/AutoHandPlayerControllerInputSimulator.cs` to **AutoHandPlayer**.
+* Press play! There are no references required
 
 ![DefaultConfig](ScriptLocation.png)
 
-* If using unity version **2021.2.12f1**, make sure to enable the old input handler: `Go to Edit` -> `Project Settings` -> `Player` -> Under `Other Settings` under `Configuration` is the option `Active Input Handling`. Select `Both`.
+* If using unity version **2021.2.12f1** or newer, make sure to enable the old input handler: `Go to Edit` -> `Project Settings` -> `Player` -> Under `Other Settings` under `Configuration` is the option `Active Input Handling`. Select `Both`.
 
-The script should(!) detect whether the Mock HMD is used and only be effective, if that is the case. 
+The script should(!) detect whether the Mock HMD / OpenXR is used and if an HMD is **NOT** attached, and only be effective, if those conditions are met. 
 If that is **NOT** the case, the code will simply not run. 
 Also, it is using pre-processor directives, so it won't compile for build versions, i.e. you should be able to just leave it there, even for a build version.
 
 ## Prerequisites
 Requires: 
-* The Mock HMD from unity, get it here: https://docs.unity3d.com/Packages/com.unity.xr.mock-hmd@1.0/manual/index.html
+* The OpenXR plugin (the default in the standard VR template) or the Mock HMD from unity (get the Mock HMD here: https://docs.unity3d.com/Packages/com.unity.xr.mock-hmd@1.0/manual/index.html)
 * The "old" input system from unity, which is the default for Autohand (AFAIK).
 * The [AutoHand](https://assetstore.unity.com/packages/tools/physics/auto-hand-vr-physics-interaction-165323) package
 
@@ -47,35 +48,24 @@ Controls can be rebound to different key-bindings
 - HOLD E + LMB -> grab with right
 - HOLD Q + HOLD E + LMB -> grab with both hands
 
-- ESC -> Once play testing, click inside the game view to lock your cursor to the game.
-         Escape can be used to detach the cursor from the game window
-
-The camera behaves just like a first person shooter. When moving the mouse the camera freezes and stays in position.
-
 ## Settings
 
-![DefaultConfig](DefaultConfiguration.png)
+![DefaultConfig_collapsed](DefaultConfiguration_collapsed.png)
 
-| Category     | Setting                  | Description                                                               |
-|--------------|--------------------------|---------------------------------------------------------------------------|
-| Requirements | `Auto Hand Player`       | A ref to the script `Auto Hand Player`                                    |
-| Requirements | `Dev Hand Left`          | The left `Hand` script                                                    |
-| Requirements | `Left Dev Hand Offset`   | The `Transform` of the left hand offset                                   |
-| Requirements | `Dev Hand Right`         | The right `Hand` script                                                   |
-| Requirements | `Right Dev Hand Offset`  | The `Transform` of the right hand offset                                  |
-| Key-Bindings | `Mouse Sensitivity`      | The sensitivity of the first person camera                                |
-| Key-Bindings | `Control Left Hand` Key  | When hold, allows you to move the left hand to the position of the mouse  |
-| Key-Bindings | `Control Right Hand` Key | When hold, allows you to move the right hand to the position of the mouse |
-| Key-Bindings | `Reset Hand` Key         | When pressed reset the position of both hands relative to the headset     |
-| Key-Bindings | `Crouch` Key             | Player is crouching when pressed                                          |
-| Key-Bindings | `Primary Button` Key     | Button used to grab and release objects in the workspace                  |
-| Camera       | `FOV`                    | Field of View                                                             |
-| Misc         | `Head Height`            | The height of the player in Meters                                        |
+![DefaultConfig](DefaultConfiguration.png)
 
 ## Contributions
 
 New to old:
-
+- Refactor and compatibility update -> [MThogersen](https://github.com/MThogersen)
+    - Added support for OpenXR's Mock HMD
+    - Exposed several settings for more customization
+    - Exposed all keyCodes so all buttons can be remapped
+    - New enhanced inspector using the familiar Autohand style
+    - Exposed grab/release events for further customization
+    - Disabled First Person view for now
+---
+- Merged branch from [0x78f1935](https://github.com/0x78f1935) into main
 ---
 - Refactor -> [0x78f1935](https://github.com/0x78f1935)
     - Changed the way hands move (by raycast)

@@ -1,128 +1,226 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using Autohand;
+using UnityEngine.Experimental.XR.Interaction;
 using UnityEngine.XR.Management;
+using UnityEngine.XR;
 using UnityEngine.SpatialTracking;
+using NaughtyAttributes;
+#if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+// ready for new input system implementation 
+#endif
+using System;
 
-public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
+public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
 {
-
-    [Header("Requirements")]
-    public AutoHandPlayer player;  // Autohand class available to the AutoHandPlayer prefab
-    public Hand devHandLeft; // The left hand of the debug tool
-    public Transform leftDevHandOffset; // The offset of the left dev hand
-    public Hand devHandRight; // The right hand of the debug tool
-    public Transform rightDevHandOffset; // The offset of the right dev hand
-
-    [Header("Key-Bindings")]
-    public float mouseSensitivity = 100.0f; // Mouse sensitivity 
-    public KeyCode controlLeftHandKey = KeyCode.Q;  // Key assignment for left hand
-    public KeyCode controlRightHandKey = KeyCode.E; // Key assignment for right hand
-    public KeyCode resetHandKey = KeyCode.R; // Key assignment for resetting hand pos
-    public KeyCode crouchKey = KeyCode.LeftControl; // Key assignment for crouching
-    public KeyCode primaryButtonKey = KeyCode.Mouse0; // Primary trigger button
-
-    [Header("Camera")]
-    public float fov = 80.0f;  // Field of View used in first person camera
-
-    [Header("Misc")]
-    public float headHeight = 1.8f;  // The simulated height of the Mock HMD
-
-    // -- Control variables
-    private bool simulate = false;  // True when script is allowed to run
-    private SimulatedPoseDriver leftPoser, rightPoser, head;  // placeholder (hands, head)
-
-    // -- First person view
-    private float rotY = 0.0f; // rotation around the up/y axis, used in first person camera
-    private float rotX = 0.0f; // rotation around the right/x axis, used in first person camera
-
-    private void Start()
-    {  // Wait a fraction of a second to make sure the headset hardware is loaded in properly
-        Invoke("DelayedStart", 0.1f);
-    }
-
-    private void DelayedStart()
-    {
-        if (!(bool)XRGeneralSettings.Instance?.Manager?.activeLoader.name.Contains("Mock"))
-        { // Makes sure all the requirements are met before starting this script
-            return;
-        }
-        else
-        { // Set the script indicator on True
-            simulate = true;
-        }
-
-        if (simulate)
-        {  // Turn off the offset of the hands since this gives issues with raycasting
-            leftDevHandOffset.position = new Vector3(0, 0, 0);
-            rightDevHandOffset.position = new Vector3(0, 0, 0);
-            devHandLeft.transform.position = new Vector3(0, 0, 0);
-            devHandRight.transform.position = new Vector3(0, 0, 0);
-
-            Cursor.lockState = CursorLockMode.Confined;   // keep confined to center of screen
-        }
-
-
-        var trackedPoseDrivers = FindObjectsOfType<TrackedPoseDriver>();
-
-        foreach (var driver in trackedPoseDrivers)
-        {
-            if (driver.poseSource == TrackedPoseDriver.TrackedPose.Center)
-            { // Create a head
-                head = new GameObject("HeadDriver").AddComponent<SimulatedPoseDriver>();
-                head.transform.position = new Vector3(0, headHeight, 0);
-                driver.poseProviderComponent = head;
-            }
-            if (driver.poseSource == TrackedPoseDriver.TrackedPose.LeftPose)
-            { // Create a left hand pose
-                leftPoser = new GameObject("LeftDriver").AddComponent<SimulatedPoseDriver>();
-                leftPoser.transform.position = new Vector3(-.2f, 1f, 0.3f);
-                driver.poseProviderComponent = leftPoser;
-            }
-            if (driver.poseSource == TrackedPoseDriver.TrackedPose.RightPose)
-            { // Create a right hand pose
-                rightPoser = new GameObject("RightDriver").AddComponent<SimulatedPoseDriver>();
-                rightPoser.transform.position = new Vector3(.2f, 1f, 0.3f);
-                driver.poseProviderComponent = rightPoser;
-            }
-        }
-        // Obtain player
-        player = GetComponent<AutoHandPlayer>();
-        // Activate head tracking
-        Invoke("MoveHeadToStartTracking", 1f);
-    }
-
-
-#if UNITY_EDITOR
     enum Move
-    { // Contains possible outcomes of moving elements
-        dontMove,
+    {
+        noInput,
+        body,
+        head,
         bodyAndHead,
         leftHand,
         rightHand,
         bothHands
     }
+    // Publics / serialized
+    [Tooltip("Auto-populates, if not assigned.")]
+    public AutoHandPlayer player;
+    public float headHeight = 1.8f;
 
-    Move move = Move.bodyAndHead;
+    [Header("Status indicators:")]
+    [ReadOnly]
+    [Tooltip("This just shows whether the simulator is working. " +
+    "It is based on whether the the Mock HMD is running. (only updated on start). " +
+    "If this is false, it means that this simulator is not doing anything (literally nothing at all).")]
+    [SerializeField]
+    private bool isSimulating = false;
+    [ReadOnly]
+    [SerializeField] private Move currentlyMoving = Move.bodyAndHead;
 
-    void Update()
+    [AutoToggleHeader("Advanced Options")]
+    public bool ignoreMe = false;
+    [Header("Adjustments:")]
+    [ShowIf("ignoreMe")]
+    public bool runSimWithHMDConnected = false;
+    [ShowIf("ignoreMe")]
+    public Vector3 leftHandStartOffset = new Vector3(-.2f, 1.5f, 0.3f), rightHandStartOffset = new Vector3(.2f, 1.5f, 0.3f);
+    [ShowIf("ignoreMe")]
+    [Range(100f, 1500f)]
+    public float mouseLookSensitivity = 500f;
+    [ShowIf("ignoreMe")]
+    [Range(0.5f, 3f)]
+    public float handMovementSpeed = 1f;
+    [ShowIf("ignoreMe")]
+    [Tooltip("This will ensure that the regular XRHandPlayerControllerLink is disabled " +
+        "and stays disabled while using this simulator. " +
+        "Reasons to use: If you enable/disable the XRHandPlayerControllerLink" +
+        "while the game is running, it might overtake control and block the commands from this script.")]
+    [SerializeField] bool disableXRControllerLink = true;
+    [ShowIf("ignoreMe")]
+    [Tooltip("Disables pushing, climbing and platforms options on AutoHandPlayer at startup. These might interfere with the function, though not consistently.")]
+    public bool disableInterferringFeatures = false;
+    [ShowIf("ignoreMe"), Tooltip("Auto-populates if the reference is on this gameobject. Otherwise set it here.")]
+    [SerializeField] private MonoBehaviour xRHandPlayerControllerLink;
+
+    [AutoToggleHeader("Key Setup")]
+    [SerializeField] bool ignorMe2;
+    [ShowIf("ignorMe2")]
+    public KeyCode controlLeftHandKeyCode = KeyCode.Q,
+        controlRightHandKeyCode = KeyCode.E,
+        forwardKeyCode = KeyCode.W,
+        leftKeyCode = KeyCode.A,
+        backKeyCode = KeyCode.S,
+        rightKeyCode = KeyCode.D,
+        mouseGrabKeyCode = KeyCode.Mouse0,
+        mouseLookKeyCode = KeyCode.Mouse1,
+        crouchKeyCode = KeyCode.LeftControl,
+        resetHandKeyCode = KeyCode.R;
+
+    [AutoToggleHeader("Events")]
+    [SerializeField] bool ignorMe3;
+    [ShowIf("ignorMe3")]
+    public UnityHandEvent grabEvent, releaseEvent;
+
+
+
+    // Privates
+    private SimulatedPoseDriver leftPoser, rightPoser, headPoser;
+    private Vector2 screenSize;
+    private Vector2 previousMousePos = Vector2.zero;
+    private bool firstFrame = true;
+    private bool controlLeftHand, controlRightHand, forwardKey, backKey, leftKey, rightKey, mouseGrabKey, mouseLookKey, crouchKey, resetHandKey, mouseLookKeyDown;
+    private Vector2 movementInputs = Vector2.zero;
+    private Vector2 mouseDeltaPosition = Vector2.zero;
+    private Vector2 mouseScrollDelta = Vector2.zero;
+    // First person view
+    // rotation around the right/x axis and up/y axis, used in first person camera
+    private Vector2 mouseLookDirectionFPS = Vector2.zero; 
+
+    private void Start()
     {
-        // If script is not allowed to run, deny service
-        if (!simulate)
+        var activeXRSystemName = XRGeneralSettings.Instance?.Manager?.activeLoader.name;
+
+        // Check for MockHMD OR Open XR, if it is not running, then don't do anything
+        if (!(activeXRSystemName.Contains("Mock") || activeXRSystemName.Contains("Open")))
             return;
 
-        // Check what we are moving
-        move = DetermineWhatToMove();
-
-        switch (move)
+        // Check for active HMD's displaying the game, if none, then continue, otherwise don't do anything
+        bool areHMDsConnected = false;
+        var activeXRSystem = XRGeneralSettings.Instance?.Manager?.activeLoader.name;
+        List<XRDisplaySubsystem> displaySubsystems = new List<XRDisplaySubsystem>();
+        SubsystemManager.GetInstances<XRDisplaySubsystem>(displaySubsystems);
+        foreach (var subsystem in displaySubsystems)
         {
-            case Move.dontMove:
+            if (subsystem.running && !subsystem.subsystemDescriptor.id.Contains("Mock"))
+                areHMDsConnected = true;
+        }
+
+        if (!runSimWithHMDConnected && areHMDsConnected)
+            return;
+        else
+            isSimulating = true;
+
+        // Get tracked pose drivers (these are the ones on Controller right/left and head in the standard Autohand setup)
+        var trackedPoseDrivers = FindObjectsOfType<TrackedPoseDriver>();
+
+        // Assign a SimulatedPoseDriver into the Base Pose Provider slot in each of the tracked pose drivers 
+        foreach (var driver in trackedPoseDrivers)
+        {
+            if (driver.poseSource == TrackedPoseDriver.TrackedPose.Center)
+            {
+                headPoser = new GameObject("HeadDriver").AddComponent<SimulatedPoseDriver>();
+                headPoser.transform.position = new Vector3(0, headHeight, 0);
+                driver.poseProviderComponent = headPoser;
+            }
+            if (driver.poseSource == TrackedPoseDriver.TrackedPose.LeftPose)
+            {
+                leftPoser = new GameObject("LeftDriver").AddComponent<SimulatedPoseDriver>();
+                leftPoser.transform.position = leftHandStartOffset;
+                driver.poseProviderComponent = leftPoser;
+            }
+            if (driver.poseSource == TrackedPoseDriver.TrackedPose.RightPose)
+            {
+                rightPoser = new GameObject("RightDriver").AddComponent<SimulatedPoseDriver>();
+                rightPoser.transform.position = rightHandStartOffset;
+                driver.poseProviderComponent = rightPoser;
+            }
+        }
+
+        player = GetComponent<AutoHandPlayer>();
+
+        if (grabEvent == null)
+            grabEvent = new UnityHandEvent();
+        if (releaseEvent == null)
+            releaseEvent = new UnityHandEvent();
+
+        if (disableXRControllerLink)
+            xRHandPlayerControllerLink = (MonoBehaviour)GetComponent("Autohand.Demo.XRHandPlayerControllerLink");
+
+        // This is to ensure that the XRHandControllerLink script doesn't block the movement input.
+        if (disableXRControllerLink && xRHandPlayerControllerLink != null)
+            xRHandPlayerControllerLink.enabled = false;
+
+        if (disableInterferringFeatures)
+        {
+            player.allowBodyPushing = false;
+            player.allowClimbing = false;
+            player.allowClimbingMovement = false;
+            player.allowPlatforms = false;
+        }
+
+        // This is to ensure that the movement initializes properly after start
+        // (The headFollower of Autohand doesn't start without an initial movement)
+        Invoke("MoveHeadToStartTracking", 0.2f);
+
+
+        // Service message to change Input manager
+#if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+            Debug.LogWarning("Thanks for checking out Autohand simulator! Unfortunalely, you appear to have the new input system as the default input system. " +
+            "Currently, it is not supported by this simulator, so in order to use it, you'll have to enable the old/legacy input system." +
+            "You can do that by going into Edit >> Project Settings >> Player >> and change the [Active Input Handling] to [Legacy] or [Both].");
+#endif
+    }
+
+#if UNITY_EDITOR
+    // Idea is:
+    // 1. Get all relevant keyboard/mouse inputs using GetInputs() (values saved in variables)
+    // 2. Check the inputs from keyboard/mouse using DetermineWhatToMove() 
+    // 3. Depending on the result, handle movement of the different parts (i.e., hands, head and body)
+    void Update()
+    {
+        if (!isSimulating)
+            return;
+
+        if (player == null)
+            return;
+
+        if (!Application.isFocused)
+            return;
+
+        GetInputs();
+
+        currentlyMoving = DetermineWhatToMove();
+
+        player.crouching = crouchKey;
+
+        if (resetHandKey)
+            ResetHandPositions();
+
+        switch (currentlyMoving)
+        {
+            case Move.noInput:
+                break;
+            case Move.body:
+                HandleBodyMovement();
+                break;
+            case Move.head:
+                HandleMouseHeadRotation();
                 break;
             case Move.bodyAndHead:
-                player.allowBodyPushing = false;
-                player.allowClimbing = false;
-                player.allowClimbingMovement = false;
-                player.allowPlatforms = false;
                 HandleBodyMovement();
+                HandleMouseHeadRotation();
                 break;
             case Move.leftHand:
                 HandleHandControl(Move.leftHand);
@@ -137,180 +235,200 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
             default:
                 break;
         }
+
+        // This is a bit of a hack to accommodate a change in the Move() command in Autohand 3.0
+        if (!(currentlyMoving == Move.body || currentlyMoving == Move.bodyAndHead))
+            player.Move(Vector2.zero); 
     }
 
-    private void LateUpdate()
+    void FixedUpdate()
     {
-        if (!simulate)
-        {
+        if (!isSimulating)
             return;
+
+        if (player == null)
+            return;
+
+        if (currentlyMoving == Move.bodyAndHead || currentlyMoving == Move.body)
+        {
+            if (disableXRControllerLink && xRHandPlayerControllerLink != null)
+                xRHandPlayerControllerLink.enabled = false;
+            player.Move(movementInputs);
         }
 
-        // If we do not move the hands we would like to freeze the camera so it (and the object we try to interact with) stays into frame
-        if (!(Input.GetKey(controlLeftHandKey) | Input.GetKey(controlRightHandKey)))
-        { HandleMouseHeadRotation(); }
-        UserInput();
     }
 
-    Quaternion GetRotationTargetBasedOnMouse() 
-    { // Set target rotation to mouse pointer in 3D space
-        float mouseX = Input.GetAxis("Mouse X");
-        float mouseY = -Input.GetAxis("Mouse Y");
+    private void GetInputs()
+    {
+        // If using old input system or both:
+#if ENABLE_LEGACY_INPUT_MANAGER
+        controlLeftHand = Input.GetKey(controlLeftHandKeyCode);
+        controlRightHand = Input.GetKey(controlRightHandKeyCode);
 
-        rotY += mouseX * mouseSensitivity * Time.deltaTime;
-        rotX += mouseY * mouseSensitivity * Time.deltaTime;
+        forwardKey = Input.GetKey(forwardKeyCode);
+        leftKey = Input.GetKey(leftKeyCode);
+        backKey = Input.GetKey(backKeyCode);
+        rightKey = Input.GetKey(rightKeyCode);
 
-        rotX = Mathf.Clamp(rotX, -fov, fov);
+        crouchKey = Input.GetKey(crouchKeyCode);
+        resetHandKey = Input.GetKeyDown(resetHandKeyCode);
 
-        Quaternion localRotation = Quaternion.Euler(rotX, rotY, 0.0f);
-        return localRotation;
-    }
-
-    private Vector3 GetPostionTargetBasedOnMouse() 
-    {  // Converts mouse position to 3D position
-        var hand = move == Move.leftHand ? leftPoser : rightPoser;
-        var target_hand = devHandLeft;
-        if (hand.transform.name == "RightDriver")
-        {
-            target_hand = devHandRight;
-        }
-        LayerMask ignoreLayers = ~(1 << 2 & 1 << 28 & 1 << 29 & 1 << 31);  // Ignore default autohand layers which can collide with raycasting
-        if (Physics.Raycast(Camera.main.ScreenPointToRay(Input.mousePosition), out RaycastHit hit, int.MaxValue, ignoreLayers))
-        {
-            return new Vector3(hit.point.x, hit.point.y, hit.point.z);
-        }
-        return target_hand.transform.position;
+        mouseGrabKey = Input.GetKeyDown(mouseGrabKeyCode);
+        mouseLookKey = Input.GetKey(mouseLookKeyCode);
+        mouseLookKeyDown = Input.GetKeyDown(mouseLookKeyCode);
+        mouseScrollDelta = Input.mouseScrollDelta;
+        mouseDeltaPosition = GetMouseScreenDeltaPosition();
+        movementInputs = GetMovementControls();
+#endif
+        // If only the new input system is available:
+#if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
+        // ready for new input system implementation 
+#endif
     }
 
     Move DetermineWhatToMove()
-    { // Check what inputs are provided to determine what we are moving
-        var controlLeftHand = Input.GetKey(controlLeftHandKey);
-        var controlRightHand = Input.GetKey(controlRightHandKey);
+    {
+        currentlyMoving = Move.noInput;
 
         if (!(controlLeftHand | controlRightHand))
-            move = Move.bodyAndHead;
+        {
+            if (mouseLookKey == true)
+            {
+                if (movementInputs != Vector2.zero)
+                    currentlyMoving = Move.bodyAndHead;
+                else
+                    currentlyMoving = Move.head;
+            }
+            else if (movementInputs != Vector2.zero)
+            {
+                currentlyMoving = Move.body;
+            }
+        }
         else if (controlLeftHand && controlRightHand)
-            move = Move.bothHands;
+            currentlyMoving = Move.bothHands;
         else if (controlLeftHand)
-            move = Move.leftHand;
+            currentlyMoving = Move.leftHand;
         else if (controlRightHand)
-            move = Move.rightHand;
+            currentlyMoving = Move.rightHand;
 
-        return move;
+        return currentlyMoving;
     }
 
     void HandleBodyMovement()
-    {  // Handels player movement W, A, S, D
-        player.Move(GetMovementControls());
+    {
+        if (player == null)
+            return;
+
+        if (disableXRControllerLink && xRHandPlayerControllerLink != null)
+            xRHandPlayerControllerLink.enabled = false;
+        player.Move(movementInputs);
     }
 
+
     void HandleMouseHeadRotation()
-    {  // Handels where the user is looking at in first person
-        if (head) { 
-            head.transform.rotation = GetRotationTargetBasedOnMouse();
+    {
+        if (headPoser == null)
+            return;
+
+        if (mouseLookKeyDown)
+        {
+            firstFrame = true;
+            return;
         }
+
+        if (!firstFrame)
+        {
+            headPoser.transform.Rotate(0, mouseDeltaPosition.x * mouseLookSensitivity, 0, Space.World);
+
+            foreach (var hand in new List<SimulatedPoseDriver> { leftPoser, rightPoser })
+            {
+                hand.transform.RotateAround(headPoser.transform.position, player.trackingContainer.transform.up, mouseDeltaPosition.x * mouseLookSensitivity);
+            }
+
+            headPoser.transform.Rotate(-mouseDeltaPosition.y * mouseLookSensitivity, 0, 0, Space.Self);
+        }
+
+        firstFrame = false;
+        
     }
 
     void HandleHandControl(Move move)
-    { // Moves hands to correct position
-        var hand = move == Move.leftHand ? leftPoser : rightPoser;  // Check which hand we currently using
-        Vector3 target = GetPostionTargetBasedOnMouse(); // Fetch target position
-        if (hand.transform.name == "LeftDriver") 
+    {
+        var handPoser = move == Move.leftHand ? leftPoser : rightPoser;
+
+        var zDelta = (mouseScrollDelta / 30f).y;
+        var xyDelta = mouseDeltaPosition * 3f;
+        
+        var toMove = new Vector3(xyDelta.x, xyDelta.y, zDelta) * handMovementSpeed;
+
+        handPoser.transform.position += handPoser.transform.TransformDirection(toMove);
+
+        if (!mouseGrabKey)
+            return;
+
+        if (move == Move.leftHand)
         {
-            devHandLeft.SetHandLocation(target, GetRotationTargetBasedOnMouse());
+            if (player.handLeft.GetHeldGrabbable() != null)
+            {
+                player.handLeft.Release();
+                releaseEvent.Invoke(player.handLeft);
+            }
+            else
+            {
+                player.handLeft.Grab();
+                grabEvent.Invoke(player.handLeft);
+            }
+
         }
-        else if (hand.transform.name == "RightDriver")
+        else if (move == Move.rightHand)
         {
-            devHandRight.SetHandLocation(target, GetRotationTargetBasedOnMouse());
-        }        
+            if (player.handRight.GetHeldGrabbable() != null)
+            {
+                player.handRight.Release();
+                releaseEvent.Invoke(player.handRight);
+            }
+            else
+            {
+                player.handRight.Grab();
+                grabEvent.Invoke(player.handRight);
+            }
+
+        }
+    }
+
+    private Vector2 GetMouseScreenDeltaPosition()
+    {
+        screenSize = new Vector2((float)Screen.currentResolution.height, (float)Screen.currentResolution.width);
+
+        var currentMouseInput = (Vector2)Input.mousePosition;
+        var mouseDiff = currentMouseInput - previousMousePos;
+        previousMousePos = currentMouseInput;
+        
+        return mouseDiff / screenSize;
     }
 
     Vector2 GetMovementControls()
     {
-        var ud = Input.GetKey(KeyCode.W) ? 1 : 0;
-        ud += Input.GetKey(KeyCode.S) ? -1 : 0;
-        var lr = Input.GetKey(KeyCode.A) ? -1 : 0;
-        lr += Input.GetKey(KeyCode.D) ? 1 : 0;
-        return new Vector2(lr, ud);
+        var upDown = forwardKey ? 1 : 0;
+        upDown += backKey ? -1 : 0;
+        var leftRight = leftKey ? -1 : 0;
+        leftRight += rightKey ? 1 : 0;
+        return new Vector2(leftRight, upDown);
+    }
+
+    void ResetHandPositions()
+    {
+        var currentForwardRotation = Quaternion.Euler(0, headPoser.transform.rotation.eulerAngles.y, 0);
+
+        leftPoser.transform.position = currentForwardRotation * leftHandStartOffset;
+        rightPoser.transform.position = currentForwardRotation * rightHandStartOffset;
     }
 
     public void MoveHeadToStartTracking()
     {
-        head.transform.position += new Vector3(0, 0.01f, 0);
-        // Set firstperson view rotation
-        Vector3 rot = head.transform.localRotation.eulerAngles;
-        rotY = rot.y;
-        rotX = rot.x;
-    }
-
-    private void UserInput() 
-    { // handles user input
-        if (move == Move.bodyAndHead)
-        {
-            player.Move(GetMovementControls());
-        }
-
-        if (Input.GetKeyDown(crouchKey)) 
-        { // Allows the user to crouch
-            player.crouching = true;
-        }
-        else if (Input.GetKeyUp(crouchKey)) 
-        { // Stand up
-            player.crouching = false;
-        }
-
-        if (Input.GetKey(resetHandKey))
-        { // Reset hands in viewport
-            devHandLeft.ResetHandLocation();
-            devHandRight.ResetHandLocation();
-        }
-
-        if (move == Move.leftHand)
-        {
-            if (Input.GetKeyDown(primaryButtonKey))
-            {
-                if (devHandLeft.GetHeldGrabbable() != null)
-                {
-                    devHandLeft.Release();
-                }
-                else
-                {
-                    devHandLeft.Grab();
-                }
-            }
-        
-        }
-        else if (move == Move.rightHand)
-        {
-            if (Input.GetKey(primaryButtonKey))
-            { 
-                if (devHandRight.GetHeldGrabbable() != null)
-                {
-                    devHandRight.Release();
-                }
-                else
-                {
-                    devHandRight.Grab();
-                }
-            }
-        }
-        else if (move == Move.bothHands)
-        {
-            if (Input.GetKey(primaryButtonKey))
-            {
-                if (devHandRight.GetHeldGrabbable() != null && devHandLeft.GetHeldGrabbable() != null)
-                {
-                    devHandRight.Release();
-                    devHandLeft.Release();
-                }
-                else
-                {
-                    devHandRight.Grab();
-                    devHandLeft.Grab();
-                }
-            }
-        }
+        headPoser.transform.position += new Vector3(0, 0.01f, 0);
     }
 
 #endif
 }
+
