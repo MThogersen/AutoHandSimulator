@@ -53,6 +53,9 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
     [Range(100f, 1500f)]
     public float mouseLookSensitivity = 800f;
     [ShowIf("ignoreMe")]
+    [Range(0.1f, 2f)]
+    public float ScrollHandSpeed = 1f;
+    [ShowIf("ignoreMe")]
     [Range(0.5f, 6f)]
     public float handMovementSpeed = 3f;
     [ShowIf("ignoreMe")]
@@ -386,7 +389,7 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
     {
         var handPoser = move == Move.leftHand ? leftPoser : rightPoser;
 
-        var zDelta = (mouseScrollDelta / 30f).y;
+        var zDelta = (mouseScrollDelta / 50f).y * ScrollHandSpeed;
         var xyDelta = mouseDeltaPosition * 3f;
         
         var toMove = new Vector3(xyDelta.x, xyDelta.y, zDelta) * handMovementSpeed;
