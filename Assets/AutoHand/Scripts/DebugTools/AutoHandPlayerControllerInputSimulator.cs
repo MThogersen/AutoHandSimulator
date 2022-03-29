@@ -1,18 +1,18 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using Autohand;
-using UnityEngine.Experimental.XR.Interaction;
 using UnityEngine.XR.Management;
 using UnityEngine.XR;
 using UnityEngine.SpatialTracking;
 using NaughtyAttributes;
+using System;
+
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
 // ready for new input system implementation 
 #endif
-using System;
 
-public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
+[DefaultExecutionOrder(-4)]
+public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
 {
     enum Move
     {
@@ -24,6 +24,7 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
         rightHand,
         bothHands
     }
+
     // Publics / serialized
     [Tooltip("Auto-populates, if not assigned.")]
     public AutoHandPlayer player;
@@ -63,7 +64,7 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
         "and stays disabled while using this simulator. " +
         "Reasons to use: If you enable/disable the XRHandPlayerControllerLink" +
         "while the game is running, it might overtake control and block the commands from this script.")]
-    [SerializeField] bool disableXRControllerLink = true;
+    [SerializeField] bool disableXRControllerLink = false;
     [ShowIf("ignoreMe")]
     [Tooltip("Disables pushing, climbing and platforms options on AutoHandPlayer at startup. These might interfere with the function, though not consistently.")]
     public bool disableInterferringFeatures = false;
@@ -94,8 +95,6 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
     [SerializeField] bool ignorMe3;
     [ShowIf("ignorMe3")]
     public UnityHandEvent grabEvent, releaseEvent;
-
-
 
     // Privates
     private SimulatedPoseDriver leftPoser, rightPoser, headPoser;
@@ -165,7 +164,7 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
             releaseEvent = new UnityHandEvent();
 
         if (disableXRControllerLink)
-            xRHandPlayerControllerLink = (MonoBehaviour)GetComponent("Autohand.Demo.XRHandPlayerControllerLink");
+            xRHandPlayerControllerLink = (MonoBehaviour)FindObjectOfType<Autohand.Demo.XRHandPlayerControllerLink>();
 
         // This is to ensure that the XRHandControllerLink script doesn't block the movement input.
         if (disableXRControllerLink && xRHandPlayerControllerLink != null)
@@ -179,12 +178,9 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
             player.allowPlatforms = false;
         }
 
-        
-
         // This is to ensure that the movement initializes properly after start
         // (The headFollower of Autohand doesn't start without an initial movement)
         Invoke("MoveHeadToStartTracking", 0.2f);
-
 
         // Service message to change Input manager
 #if ENABLE_INPUT_SYSTEM && !ENABLE_LEGACY_INPUT_MANAGER
@@ -253,7 +249,6 @@ public class AutoHandPlayerControllerInputSimulator: MonoBehaviour
         if (!(currentlyMoving == Move.body || currentlyMoving == Move.bodyAndHead))
             player.Move(Vector2.zero); 
     }
-
     void FixedUpdate()
     {
         if (!isSimulating)
