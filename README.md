@@ -15,7 +15,7 @@ To control hands, simply hold down Q for left hand and E for right hand and move
 # Setup
 * Setup [AutoHand](https://assetstore.unity.com/packages/tools/physics/auto-hand-vr-physics-interaction-165323) for Unity.
 * Copy `Assets` folder into your project
-* Make sure either `Mock HMD` or `OpenXR` is enabled: `Go to Edit -> Project Settings-> XR Plug-in Management` and enable one of them.
+* Make sure that MockHMD and either `Oculus` or `OpenXR` is enabled: `Go to Edit -> Project Settings-> XR Plug-in Management` and enable them. If using OpenXR, make sure to disable Mock Runtime if enabled.
 * Using the default XRPlayer, attach the `Assets/AutoHand/Scripts/DebugTools/AutoHandPlayerControllerInputSimulator.cs` to **AutoHandPlayer**.
 * Press play! There are no references required
 
@@ -29,12 +29,9 @@ Also, it is using pre-processor directives, so it won't compile for build versio
 
 ## Prerequisites
 Requires: 
-* The OpenXR plugin (the default in the standard VR template) or the Mock HMD from unity (get the Mock HMD here: https://docs.unity3d.com/Packages/com.unity.xr.mock-hmd@1.0/manual/index.html)
+* The Mock HMD from unity (get the Mock HMD here: https://docs.unity3d.com/Packages/com.unity.xr.mock-hmd@1.0/manual/index.html) and the OpenXR (the default in the standard VR template) or the Oculus plugin.
 * The "old" input system from unity, which is the default for Autohand (AFAIK).
 * The [AutoHand](https://assetstore.unity.com/packages/tools/physics/auto-hand-vr-physics-interaction-165323) package
-
-## Known issues
-- In the Demo scene locomotion using the script occasionally does not work. I have not been able to reliably repreoduce the problem - a restart of Unity usually fixes it.
 
 ## Controls
 Controls can be rebound to different key-bindings
@@ -58,6 +55,10 @@ Controls can be rebound to different key-bindings
 ## Contributions
 
 New to old:
+- HotFix for OpenXR freeze frame issue -> [MThogersen](https://github.com/MThogersen)
+    - OpenXR did not work as intended when an HMD was running (AutohandSim didn't turn off, resulting in the first frame being frozen), this fix removes a check in the beginning of the code which eliminates this problem. Tested 20/04/2022 in Unity 2021.2.16f.
+    - Removed option to run simulator while running an HMD as this was never properly implemented
+---
 - Updated default controls -> [MThogersen](https://github.com/MThogersen)
     - Changed the default control mode to lock the cursor to the game view (FPS style control) until either: ESC is pressed or the LMB is pressed
     - Original control mode (with no cursor lock) is made available through "Cursor Lock" option.

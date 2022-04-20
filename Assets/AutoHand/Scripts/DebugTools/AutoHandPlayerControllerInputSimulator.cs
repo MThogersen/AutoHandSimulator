@@ -47,8 +47,6 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
     [Tooltip("Locks cursor to screen, escape the screen by hitting ESC-key")]
     public bool cursorLock = true;
     [ShowIf("ignoreMe")]
-    public bool runWithHMDConnected = false;
-    [ShowIf("ignoreMe")]
     public Vector3 leftHandStartOffset = new Vector3(-.2f, 1.5f, 0.3f), rightHandStartOffset = new Vector3(.2f, 1.5f, 0.3f);
     [ShowIf("ignoreMe")]
     [Range(100f, 1500f)]
@@ -111,8 +109,12 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
         var activeXRSystemName = XRGeneralSettings.Instance?.Manager?.activeLoader.name;
 
         // Check for MockHMD OR Open XR, if it is not running, then don't do anything
-        if (!(activeXRSystemName.Contains("Mock") || activeXRSystemName.Contains("Open")))
+        if (!activeXRSystemName.Contains("Mock"))
+        {
+            Debug.Log("From AutohandSim: an active XR system was found, aborting simulation (XR system was: [" + activeXRSystemName + "])");
+            isSimulating = false;
             return;
+        }
 
         // Check for active HMD's displaying the game, if none, then continue, otherwise don't do anything
         bool areHMDsConnected = false;
@@ -125,7 +127,7 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
                 areHMDsConnected = true;
         }
 
-        if (!runWithHMDConnected && areHMDsConnected)
+        if (areHMDsConnected)
             return;
         else
             isSimulating = true;
