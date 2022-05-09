@@ -372,7 +372,7 @@ public class AutoHandPlayerControllerInputSimulator : MonoBehaviour
 
             foreach (var hand in new List<SimulatedPoseDriver> { leftPoser, rightPoser })
             {
-                hand.transform.RotateAround(headPoser.transform.position, player.trackingContainer.transform.up, mouseDeltaPosition.x * mouseLookSensitivity);
+                hand.transform.RotateAround(headPoser.transform.position, Vector3.up, mouseDeltaPosition.x * mouseLookSensitivity);
             }
 
             headPoser.transform.Rotate(-mouseDeltaPosition.y * mouseLookSensitivity, 0, 0, Space.Self);
